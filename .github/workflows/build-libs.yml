@@ -42,7 +42,7 @@ jobs:
           cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_C_COMPILER="clang" \
             -DCMAKE_CXX_COMPILER="clang++" \
-            -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
+            -DCMAKE_CXX_FLAGS="-stdlib=libc++ -Wno-gnu-zero-variadic-macro-arguments" \
             -G "Ninja" ..
           cmake --build . --target vpn_easy
 
@@ -85,7 +85,7 @@ jobs:
           cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_C_COMPILER="clang" \
             -DCMAKE_CXX_COMPILER="clang++" \
-            -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
+            -DCMAKE_CXX_FLAGS="-stdlib=libc++ -Wno-gnu-zero-variadic-macro-arguments" \
             -G "Ninja" ..
           cmake --build . --target vpn_easy
 
