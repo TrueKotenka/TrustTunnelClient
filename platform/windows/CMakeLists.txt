@@ -21,7 +21,7 @@ if (MSVC)
     add_compile_options(/W4)
     add_link_options(/W4)
 else ()
-    add_compile_options(-Wall -Wextra -Wpedantic -Wno-gnu-zero-variadic-macro-arguments)
+    add_compile_options(-Wall -Wextra -Wno-gnu-zero-variadic-macro-arguments -Wno-error=zero-length-array)
 endif ()
 
 if (NOT TARGET vpnlibs_trusttunnel)
