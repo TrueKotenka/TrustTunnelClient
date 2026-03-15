@@ -1,24 +1,18 @@
 name: Build vpn_easy Libraries
 
+env:
+  CONAN_VER: 2.12
+
 on:
-  workflow_dispatch: # Allows you to run the build manually from the GitHub UI
+  workflow_dispatch:
   release:
-    types: [created] # Runs automatically when you publish a new Release
+    types: [created]
 
 jobs:
-  build-desktop:
-    name: Build on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: windows-latest
-            compiler: cl
-          - os: ubuntu-latest
-            compiler: clang
-          - os: macos-13 # Using macOS 13 for Intel/x64 compatibility, or macos-latest for ARM64
-            compiler: clang
-
+  Linux:
+    runs-on: ubuntu-latest
+    env:
+      LLVM_MAJOR_VER: 21
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -26,41 +20,124 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13' # Required by DEVELOPMENT.md
+          python-version: '3.13'
 
-      - name: Install Dependencies (Conan & Ninja)
-        run: pip install conan ninja
+      - name: Install LLVM and Dependencies
+        run: |
+          sudo apt install -y ninja-build
+          pip install conan~=$CONAN_VER
+          curl -O https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh $LLVM_MAJOR_VER
+          sudo apt install -y libc++-${LLVM_MAJOR_VER}-dev libclang-rt-${LLVM_MAJOR_VER}-dev
+          echo "/usr/lib/llvm-$LLVM_MAJOR_VER/bin" >> $GITHUB_PATH
 
-      - name: Setup MSVC (Windows Only)
-        if: matrix.os == 'windows-latest'
-        uses: ilammy/msvc-dev-cmd@v1
+      - name: Bootstrap Conan
+        run: python ./scripts/bootstrap_conan_deps.py
 
-      - name: Bootstrap Conan Dependencies
-        run: python ./scripts/bootstrap_conan_deps.py #
-
-      - name: Configure CMake
+      - name: Configure and Build vpn_easy
         working-directory: platform/windows
-        shell: bash
         run: |
           mkdir build && cd build
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER="cl.exe" -DCMAKE_CXX_COMPILER="cl.exe" -G "Ninja" ..
-          else
-            cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER="clang" -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++" -G "Ninja" ..
-          fi
+          cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_C_COMPILER="clang" \
+            -DCMAKE_CXX_COMPILER="clang++" \
+            -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
+            -G "Ninja" ..
+          cmake --build . --target vpn_easy
 
-      - name: Build vpn_easy
-        working-directory: platform/windows/build
-        run: cmake --build . --target vpn_easy
-
-      - name: Upload Artifacts
+      - name: Upload Linux Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: vpn_easy-libs-${{ matrix.os }}
+          name: vpn_easy-linux
           path: |
-            platform/windows/build/vpn_easy.dll
-            platform/windows/build/vpn_easy.lib
             platform/windows/build/libvpn_easy.so
+            platform/windows/build/libvpn_easy_a.a
+
+# -------------------------------------------------------------
+
+  MacOS:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install LLVM and Dependencies
+        run: |
+          brew install ninja llvm@21
+          # Patch Apple's availability.h to avoid LLVM 21 conflict
+          sed -i '' 's/_LIBCPP_INTRODUCED_IN_LLVM_21 1/_LIBCPP_INTRODUCED_IN_LLVM_21 0/g' "$(brew --prefix llvm@21)/include/c++/v1/__configuration/availability.h"
+          pip install conan~=$CONAN_VER
+          echo "/opt/homebrew/opt/llvm@21/bin" >> $GITHUB_PATH
+
+      - name: Bootstrap Conan
+        run: python ./scripts/bootstrap_conan_deps.py
+
+      - name: Configure and Build vpn_easy
+        working-directory: platform/windows
+        run: |
+          mkdir build && cd build
+          cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_C_COMPILER="clang" \
+            -DCMAKE_CXX_COMPILER="clang++" \
+            -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
+            -G "Ninja" ..
+          cmake --build . --target vpn_easy
+
+      - name: Upload MacOS Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: vpn_easy-macos
+          path: |
             platform/windows/build/libvpn_easy.dylib
-            platform/windows/build/libvpn_easy.a
-          if-no-files-found: ignore
+            platform/windows/build/libvpn_easy_a.a
+
+# -------------------------------------------------------------
+
+  Windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install Dependencies
+        run: |
+          choco install strawberryperl nasm
+          pip install conan~=${{ env.CONAN_VER }} ninja
+
+      - name: Bootstrap Conan
+        run: python ./scripts/bootstrap_conan_deps.py
+
+      - name: Configure and Build vpn_easy
+        working-directory: platform/windows
+        run: |
+          mkdir build && cd build
+          cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo `
+            -DCMAKE_C_COMPILER="cl.exe" `
+            -DCMAKE_CXX_COMPILER="cl.exe" `
+            -G "Ninja" ..
+          cmake --build . --target vpn_easy
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: vpn_easy-windows
+          path: |
+            platform\windows\build\vpn_easy.dll
+            platform\windows\build\vpn_easy.lib
+            platform\windows\build\vpn_easy_a.lib
