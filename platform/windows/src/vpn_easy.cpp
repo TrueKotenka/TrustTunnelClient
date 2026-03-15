@@ -26,7 +26,7 @@ static on_log_message_t g_log_callback = nullptr;
 
 void vpn_easy_set_log_callback(on_log_message_t cb) {
     g_log_callback = cb;
-    
+
     if (cb != nullptr) {
         ag::Logger::set_callback([](ag::LogLevel log_level, std::string_view message) {
             if (g_log_callback) {
