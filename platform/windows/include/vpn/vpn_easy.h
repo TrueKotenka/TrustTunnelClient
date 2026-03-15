@@ -12,6 +12,12 @@ extern "C" {
 typedef struct vpn_easy_s vpn_easy_t;
 typedef void (*on_state_changed_t)(void *arg, int new_state_description);
 
+typedef void (*on_log_message_t)(int level, const char *message);
+WIN_EXPORT void vpn_easy_set_log_callback(on_log_message_t cb);
+
+typedef int (*on_protect_socket_t)(int fd);
+WIN_EXPORT void vpn_easy_set_protect_callback(on_protect_socket_t cb);
+
 /**
  * Start (connect) a VPN client.
  * @param toml_config VPN client parameters in TOML format.

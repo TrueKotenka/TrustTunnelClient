@@ -22,6 +22,31 @@ static void vpn_windows_verify_certificate(ag::VpnVerifyCertificateEvent *event)
     event->result = !!ag::tls_verify_cert(event->cert, event->chain, nullptr);
 }
 
+static on_log_message_t g_log_callback = nullptr;
+
+void vpn_easy_set_log_callback(on_log_message_t cb) {
+    g_log_callback = cb;
+    
+    if (cb != nullptr) {
+        ag::Logger::set_callback([](ag::LogLevel log_level, std::string_view message) {
+            if (g_log_callback) {
+                // Convert string_view to a null-terminated std::string for C compatibility
+                std::string msg_str(message);
+                g_log_callback(static_cast<int>(log_level), msg_str.c_str());
+            }
+        });
+    } else {
+        // Reset to default stderr logger if passed a null pointer
+        ag::Logger::set_callback(nullptr);
+    }
+}
+
+static on_protect_socket_t g_protect_callback = nullptr;
+
+void vpn_easy_set_protect_callback(on_protect_socket_t cb) {
+    g_protect_callback = cb;
+}
+
 static INIT_ONCE g_init_once = INIT_ONCE_STATIC_INIT;
 static HMODULE g_wintun_handle;
 
@@ -107,7 +132,12 @@ static vpn_easy_t *vpn_easy_start_internal(
         };
     } else {
         callbacks.protect_handler = [](ag::SocketProtectEvent *event) {
-            event->result = 0;
+            if (g_protect_callback) {
+                // Using Go's fd protector
+                event->result = g_protect_callback(event->fd) ? 0 : -1;
+            } else {
+                event->result = 0; // Default behavior if no callback is set
+            }
         };
     }
     callbacks.verify_handler = [](ag::VpnVerifyCertificateEvent *event) {

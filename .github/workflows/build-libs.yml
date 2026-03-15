@@ -1,0 +1,66 @@
+name: Build vpn_easy Libraries
+
+on:
+  workflow_dispatch: # Allows you to run the build manually from the GitHub UI
+  release:
+    types: [created] # Runs automatically when you publish a new Release
+
+jobs:
+  build-desktop:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            compiler: cl
+          - os: ubuntu-latest
+            compiler: clang
+          - os: macos-13 # Using macOS 13 for Intel/x64 compatibility, or macos-latest for ARM64
+            compiler: clang
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13' # Required by DEVELOPMENT.md
+
+      - name: Install Dependencies (Conan & Ninja)
+        run: pip install conan ninja
+
+      - name: Setup MSVC (Windows Only)
+        if: matrix.os == 'windows-latest'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Bootstrap Conan Dependencies
+        run: python ./scripts/bootstrap_conan_deps.py #
+
+      - name: Configure CMake
+        working-directory: platform/windows
+        shell: bash
+        run: |
+          mkdir build && cd build
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER="cl.exe" -DCMAKE_CXX_COMPILER="cl.exe" -G "Ninja" ..
+          else
+            cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER="clang" -DCMAKE_CXX_COMPILER="clang++" -DCMAKE_CXX_FLAGS="-stdlib=libc++" -G "Ninja" ..
+          fi
+
+      - name: Build vpn_easy
+        working-directory: platform/windows/build
+        run: cmake --build . --target vpn_easy
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: vpn_easy-libs-${{ matrix.os }}
+          path: |
+            platform/windows/build/vpn_easy.dll
+            platform/windows/build/vpn_easy.lib
+            platform/windows/build/libvpn_easy.so
+            platform/windows/build/libvpn_easy.dylib
+            platform/windows/build/libvpn_easy.a
+          if-no-files-found: ignore
