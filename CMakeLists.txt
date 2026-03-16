@@ -24,7 +24,7 @@ if (MSVC)
 
     add_compile_options(/Oy-) # -fno-omit-frame-pointer
 else ()
-    add_compile_options(-fno-omit-frame-pointer -Wno-gnu-zero-variadic-macro-arguments)
+    add_compile_options(-fno-omit-frame-pointer -Wno-gnu-zero-variadic-macro-arguments -Wno-error=zero-length-array)
 endif ()
 
 if (IPV6_UNAVAILABLE)

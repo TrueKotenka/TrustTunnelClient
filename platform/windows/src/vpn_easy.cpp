@@ -47,9 +47,6 @@ void vpn_easy_set_protect_callback(on_protect_socket_t cb) {
     g_protect_callback = cb;
 }
 
-static INIT_ONCE g_init_once = INIT_ONCE_STATIC_INIT;
-static HMODULE g_wintun_handle;
-
 class EasyEventLoop {
 public:
     bool start() {
@@ -126,20 +123,14 @@ static vpn_easy_t *vpn_easy_start_internal(
     ag::vpn_post_quantum_group_set_enabled(trusttunnel_config->post_quantum_group_enabled);
 
     ag::VpnCallbacks callbacks;
-    if (std::holds_alternative<ag::TrustTunnelConfig::TunListener>(trusttunnel_config->listener)) {
-        callbacks.protect_handler = [](ag::SocketProtectEvent *event) {
-            event->result = !ag::vpn_win_socket_protect(event->fd, event->peer);
-        };
-    } else {
-        callbacks.protect_handler = [](ag::SocketProtectEvent *event) {
-            if (g_protect_callback) {
-                // Using Go's fd protector
-                event->result = g_protect_callback(event->fd) ? 0 : -1;
-            } else {
-                event->result = 0; // Default behavior if no callback is set
-            }
-        };
-    }
+    callbacks.protect_handler = [](ag::SocketProtectEvent *event) {
+        if (g_protect_callback) {
+            // Using Go's fd protector
+            event->result = g_protect_callback(event->fd) ? 0 : -1;
+        } else {
+            event->result = 0; // Default behavior if no callback is set
+        }
+    };
     callbacks.verify_handler = [](ag::VpnVerifyCertificateEvent *event) {
         vpn_windows_verify_certificate(event);
     };
