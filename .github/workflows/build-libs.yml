@@ -43,6 +43,7 @@ jobs:
             -DCMAKE_C_COMPILER="clang" \
             -DCMAKE_CXX_COMPILER="clang++" \
             -DCMAKE_CXX_FLAGS="-stdlib=libc++ -Wno-gnu-zero-variadic-macro-arguments" \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
             -G "Ninja" ..
           cmake --build . --target vpn_easy
 
