@@ -10,7 +10,7 @@ on:
 
 jobs:
   Linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     env:
       LLVM_MAJOR_VER: 21
     steps:
